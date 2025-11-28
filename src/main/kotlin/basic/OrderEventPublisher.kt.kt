@@ -20,7 +20,7 @@ class `OrderEventPublisher.kt`(
     //같은 키는 같은 파티션에 저장
     fun publishOrderEvent(orderEvent: OrderEvent) {
         try {
-            // hash(key) % 토픽의 파티션 수 -> 파티션에 적절하게 분산될것임
+            // hash(key) % 토픽의 파티션 수 -> 파티션에 적절하게 분산될것임,orderId가 key값
             kafkaTemplate.send(ordersTopic, orderEvent.orderId, orderEvent)
 
                 .whenComplete { _, ex ->

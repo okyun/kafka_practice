@@ -60,6 +60,7 @@ class OrderStreamsProcessor(
     fun orderProcessingTopology(builder : StreamsBuilder) : Topology   {
         val orderStream : KStream<String, OrderEvent> = builder.stream(ordersTopic, Consumed.with(Serdes.String(), orderEventSerde))
 
+        //OrderEventPublisher에서  kafkaTemplate.send(ordersTopic, orderEvent.orderId, orderEvent) key를 orderId로 잡음
         highValueStream(orderStream)
         fraudStream(orderStream)
         orderCountStatsStream(orderStream)
@@ -111,6 +112,7 @@ class OrderStreamsProcessor(
     private fun orderCountStatsStream(orderStream: KStream<String, OrderEvent>) {
         orderStream
             .groupByKey(Grouped.with(Serdes.String(), orderEventSerde))
+            //groupByKey는 key인 orderId로 지정되어 잇다.
             .windowedBy(TimeWindows.of(Duration.ofSeconds(10)))//10초 단위값으로 구간으로 집계
             .aggregate(
                 { WindowedOrderCount() },
