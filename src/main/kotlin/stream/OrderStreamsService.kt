@@ -49,8 +49,8 @@ class OrderStreamsService(
             val prevPeriodEnd = currentPeriodStart
             val prevPeriodStart = currentPeriodStart.minusSeconds(300)
 
-            val currentCount = countForPeriod(store, currentPeriodStart, currentPeriodEnd) //  8시 55분 ~ 9시 까지의 데이터
-            val previousCount = countForPeriod(store, prevPeriodStart, prevPeriodEnd) // 8시 50분 ~ 8시 55분 까지의 데이터
+            val currentCount = countForPeriod(store, currentPeriodStart, currentPeriodEnd) //  8시 55분 ~ 9시 까지의 (주문)데이터
+            val previousCount = countForPeriod(store, prevPeriodStart, prevPeriodEnd) // 8시 50분 ~ 8시 55분 까지의 (주문)데이터
 
             val changeCount = currentCount - previousCount
             val changePercentage = if (previousCount > 0) {
@@ -60,6 +60,7 @@ class OrderStreamsService(
             } else {
                 0.0
             }
+            //어떤 시간대가 더 많은지 백분율로 계산
 
             OrderCountComparisonStats(
                 currentPeriod = PeriodStats(
@@ -81,7 +82,7 @@ class OrderStreamsService(
             return null
         }
     }
-
+    //이 시간대에 어떤 주문이 더 많이 들어왔는지 확인하는 메소드
     private fun countForPeriod(
         store : ReadOnlyWindowStore<String, WindowedOrderCount>,
         startTime : Instant,
