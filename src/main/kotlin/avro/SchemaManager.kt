@@ -44,7 +44,7 @@ class SchemaManager(
             loadSchemaFromFile("avro/order-entity.avsc")
         }
     }
-
+    //SchemaRegistry에 스키마가 있으면 load 해주기
     private fun loadSchemaFromFile(path: String) : Schema {
         return try {
             logger.info("path {}", path)

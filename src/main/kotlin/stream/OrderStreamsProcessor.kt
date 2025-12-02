@@ -20,14 +20,18 @@ import org.springframework.stereotype.Component
 import java.math.BigDecimal
 import java.time.Duration
 
-
-// 🎯 Kafka Streams “프로세서(Processor)” 준비 코드
-
-// 즉, **Kafka Streams 애플리케이션을 만들기 위한 설정 부분(Serde + Topic 이름 준비)**.
-
-// 아직 메시지를 읽지도(consume) 쓰지도(produce) 않고,
-// 그냥 나중에 Streams DSL로 처리할 토폴로지를 만들 준비만 하고 있는 상태.
-
+//
+//✔ OrderStreamsProcessor = “값을 저장하는 곳(Producer → 처리 → StateStore)”
+//
+//Kafka Topic에서 주문 이벤트(OrderEvent)를 실시간으로 읽어옴
+//
+//필터링 / 매핑 / 윈도우 집계 수행
+//
+//RocksDB 기반 State Store(예: order-count-store)에 저장
+//
+//일부는 다른 Kafka Topic에도 전송함 (fraud-alerts, high-value-orders)
+//“실시간 데이터 처리 + 상태(State) 저장 담당”
+//시스템의 두뇌 + 데이터 생산 파트
 @Component
 class OrderStreamsProcessor(
     // 주문 이벤트가 들어오는 원본 토픽
@@ -55,12 +59,14 @@ class OrderStreamsProcessor(
         }
     }
 
-    //이벤트가 전송이 되면, 자동적으로 스트림을 처리 할 수 있게 설정하기.
+//    애플리케이션이 시작될 때(Spring이 빈 만들 때) 한 번만 실행되고,
+//    그 결과로 만들어진 토폴로지를 기반으로
+//    KafkaStreams가 계속 메시지를 감시/처리하는 구조
     @Bean
     fun orderProcessingTopology(builder : StreamsBuilder) : Topology   {
         val orderStream : KStream<String, OrderEvent> = builder.stream(ordersTopic, Consumed.with(Serdes.String(), orderEventSerde))
 
-        //OrderEventPublisher에서  kafkaTemplate.send(ordersTopic, orderEvent.orderId, orderEvent) key를 orderId로 잡음
+        //OrderEventPublisher 에서 kafkaTemplate.send(ordersTopic, orderEvent.orderId, orderEvent) key를 orderId로 잡음
         highValueStream(orderStream)
         fraudStream(orderStream)
         orderCountStatsStream(orderStream)
@@ -148,3 +154,12 @@ class OrderStreamsProcessor(
             )
     }
 }
+//
+//| 항목        | orderCountStatsStream     | salesStatsStream                          |
+//| --------- | ------------------------- | ----------------------------------------- |
+//| 집계 기준 Key | orderId (기본 key 그대로)      | customerId (key 재지정)                      |
+//| 집계 목적     | 전체 주문 수 (주문량 변화 감지)       | 고객별 매출/주문 횟수                              |
+//| 윈도우       | 10초                       | 1시간                                       |
+//| 상태 저장소    | order-count-store         | sales-stats-store                         |
+//| 상태 값      | WindowedOrderCount(count) | WindowedSalesData(totalSales, orderCount) |
+//| Key 형태    | windowed(orderId)         | windowed(customerId)                      |

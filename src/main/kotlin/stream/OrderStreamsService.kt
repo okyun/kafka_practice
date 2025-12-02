@@ -16,21 +16,28 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 import kotlin.math.log
 
+//✔ OrderStreamsService = “저장된 값을 조회하는 곳”
+//
+//Kafka Streams가 만들어 둔 StateStore(RocksDB)를 읽어서
+//REST API에서 사용할 수 있는 DTO 형태의 데이터로 변환함
+
 @Service
 class OrderStreamsService(
-    private val factory : StreamsBuilderFactoryBean // 카프카 인스턴스를 관리하는 빈이고,카프카 스트림의 윈도우 저장소를 이용해서 시간 기반의 데이터를 조회 하는데 사용된다.
+    private val factory : StreamsBuilderFactoryBean
+// 카프카 인스턴스를 관리하는 빈이고,카프카 스트림의 윈도우 저장소를 이용해서 시간 기반의 데이터를 조회 하는데 사용된다.
 ) {
 
     private val logger = LoggerFactory.getLogger(OrderStreamsService::class.java)
-
-
+//
+//    첫 번째 파일이 만든 order-count-store 상태 저장소를 “읽기 전용”으로 꺼내와서,
+//    특정 시간 구간의 주문 수를 계산해서 비교 리포트를 만들어줌.
     fun orderCountComparison() : OrderCountComparisonStats? {
         return try {
             val stream = factory.kafkaStreams
             if (stream == null ||  stream.state() != KafkaStreams.State.RUNNING) {
                 return null
             }
-
+            // ⭐ 여기가 첫 번째 파일과의 연결 지점
             val store : ReadOnlyWindowStore<String, WindowedOrderCount> = stream.store(
                 StoreQueryParameters.fromNameAndType("order-count-store", QueryableStoreTypes.windowStore())
             )// ← RocksDB 읽기 준비

@@ -35,6 +35,15 @@ class LectureController(
         return ResponseEntity.ok("Order created")
     }
 
+
+//    서버가 자동으로 orderId 생성
+//
+//    customerId, quantity, price 를 파라미터로 받음
+//
+//    이 데이터로 Avro GenericRecord를 만듦
+//    → Avro 스키마(order-entity.avsc) 기반
+//
+//    즉, Avro 레코드를 생성하는 시작점(entry point)
     @PostMapping("/avro/publish")
     fun createOrder(
         @RequestParam(defaultValue = "CUST-123") customerId: String,

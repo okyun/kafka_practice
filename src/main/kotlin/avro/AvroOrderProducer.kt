@@ -29,6 +29,7 @@ class AvroOrderEventProducer(
             val avroRecord = createAvroRecord(orderId, customerId, quantity, price, schema)
 
             avroKafkaTemplate.send("orders-avro", orderId, avroRecord)
+                //Producer와 Avro Schema Registry가 제대로 연결되어 있는지 테스트하는 용도
                 .whenComplete { result, ex ->
                     if (ex == null) {
                         logger.info("Avro order event published successfully: orderId={}, partition={}, offset={}",
