@@ -40,6 +40,8 @@ class OrderStreamsProcessor(
     @Value("\${kafka.topics.high-value-orders}") private val highValueOrdersTopic: String,
     // 사기 의심 이벤트를 보내는 토픽
     @Value("\${kafka.topics.fraud-alerts}") private val fraudAlertsTopic: String,
+    // Avro 주문 이벤트 서브-토폴로지 등록용 컴포넌트
+    private val avroOrderStreamsProcessor: AvroOrderStreamsProcessor,
 ) {
     private val logger = LoggerFactory.getLogger(OrderStreamsProcessor::class.java)
 
@@ -71,6 +73,9 @@ class OrderStreamsProcessor(
         fraudStream(orderStream)
         orderCountStatsStream(orderStream)
         salesStatsStream(orderStream)
+
+        // Avro 주문 이벤트용 서브-토폴로지도 동일한 StreamsBuilder 에 등록
+        avroOrderStreamsProcessor.registerAvroTopology(builder)
 
         return builder.build()
     }

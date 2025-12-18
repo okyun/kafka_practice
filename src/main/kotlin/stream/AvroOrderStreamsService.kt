@@ -17,8 +17,8 @@ import java.time.ZoneOffset
 /**
  * Avro 주문 이벤트(`orders-avro`) 기반으로 생성된 상태 저장소를 조회하는 서비스.
  *
- * 상태 저장소 이름은 JSON 기반 스트림과 공유(`order-count-store`)하므로,
- * Avro / JSON 어느 쪽에서 들어온 주문이든 모두 합쳐서 5분 단위 비교 통계를 조회할 수 있다.
+ * Avro 전용 상태 저장소 이름:
+ *  - 주문 수 집계: `order-count-store-avro`
  */
 @Service
 class AvroOrderStreamsService(
@@ -42,7 +42,7 @@ class AvroOrderStreamsService(
 
             val store: ReadOnlyWindowStore<String, WindowedOrderCount> = streams.store(
                 StoreQueryParameters.fromNameAndType(
-                    "order-count-store",
+                    "order-count-store-avro",
                     QueryableStoreTypes.windowStore<String, WindowedOrderCount>()
                 )
             )

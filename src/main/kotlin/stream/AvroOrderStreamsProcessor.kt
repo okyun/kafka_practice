@@ -19,6 +19,7 @@ import org.example.model.OrderEvent
 import org.example.model.WindowedOrderCount
 import org.example.model.WindowedSalesData
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.kafka.support.serializer.JsonSerde
 import org.springframework.stereotype.Component
@@ -31,18 +32,19 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 /**
- * Avro 주문 이벤트(`orders-avro` 토픽)를 Kafka Streams로 처리해서
+ * Avro 주문 이벤트를 Kafka Streams로 처리해서
  *
- * - 10초 윈도우 기준 주문 수 집계(`order-count-store`)
- * - 1시간 윈도우 기준 매출 통계 집계(`sales-stats-store`)
+ * - 10초 윈도우 기준 주문 수 집계(`order-count-store-avro`)
+ * - 1시간 윈도우 기준 매출 통계 집계(`sales-stats-store-avro`)
  *
  * 를 생성한다.
- *
- * 상태 저장소 이름은 기존 `OrderStreamsProcessor` 와 동일하게 맞춰서
- * `OrderStreamsService` 가 그대로 재사용할 수 있게 한다.
  */
 @Component
-class AvroOrderStreamsProcessor {
+class AvroOrderStreamsProcessor(
+    // Avro 주문 이벤트가 들어오는 토픽
+    @Value("\${kafka.topics.orders-avro:orders-avro}")
+    private val ordersAvroTopic: String,
+) {
 
     private val logger = LoggerFactory.getLogger(AvroOrderStreamsProcessor::class.java)
 
@@ -64,11 +66,14 @@ class AvroOrderStreamsProcessor {
     }
 
     /**
-     * Avro 토픽(`orders-avro`)을 읽어서 내부적으로 `OrderEvent` 로 변환한 뒤
-     * 기존 JSON 기반 스트림과 동일한 윈도우 집계를 수행한다.
+     * Avro 토픽을 읽어서 내부적으로 `OrderEvent` 로 변환한 뒤
+     * JSON 기반 스트림과 동일한 윈도우 집계를 수행하는 서브-토폴로지를
+     * 전달받은 `StreamsBuilder` 에 등록한다.
+     *
+     * 주의: 여기서는 `builder.build()` 를 호출하지 않는다.
+     *       최종 Topology 빌드는 하나의 @Bean (예: OrderStreamsProcessor.orderProcessingTopology) 에서만 수행해야 한다.
      */
-    @Bean
-    fun avroOrderProcessingTopology(builder: StreamsBuilder): Topology {
+    fun registerAvroTopology(builder: StreamsBuilder) {
         val avroSerde: Serde<GenericRecord> = GenericAvroSerde().apply {
             configure(
                 mapOf(
@@ -80,18 +85,19 @@ class AvroOrderStreamsProcessor {
 
         // Avro 주문 이벤트 스트림
         val avroOrderStream: KStream<String, GenericRecord> =
-            builder.stream("orders-avro", Consumed.with(Serdes.String(), avroSerde))
+            builder.stream(ordersAvroTopic, Consumed.with(Serdes.String(), avroSerde))
 
         // Avro(GenericRecord) -> 도메인 모델(OrderEvent) 변환
-        val orderEventStream: KStream<String, OrderEvent> = avroOrderStream.mapValues { record ->
-            toOrderEvent(record)
-        }
+        // 1) key 를 명시적으로 orderId 로 설정
+        // 2) value 를 OrderEvent 로 변환
+        val orderEventStream: KStream<String, OrderEvent> =
+            avroOrderStream
+                .selectKey { _, record -> record.get("orderId").toString() }
+                .mapValues { record -> toOrderEvent(record) }
 
         // 기존 JSON 파이프라인과 동일한 집계 로직 재사용
         orderCountStatsStream(orderEventStream)
         salesStatsStream(orderEventStream)
-
-        return builder.build()
     }
 
     // --------------------------
@@ -105,7 +111,7 @@ class AvroOrderStreamsProcessor {
             .aggregate(
                 { WindowedOrderCount() },
                 { _, _, aggregate -> aggregate.increment() },
-                Materialized.`as`<String, WindowedOrderCount, WindowStore<Bytes, ByteArray>>("order-count-store")
+                Materialized.`as`<String, WindowedOrderCount, WindowStore<Bytes, ByteArray>>("order-count-store-avro")
                     .withValueSerde(windowedOrderCountSerde)
             )
     }
@@ -120,7 +126,7 @@ class AvroOrderStreamsProcessor {
             .aggregate(
                 { WindowedSalesData() },
                 { _, orderEvent, aggregate -> aggregate.add(orderEvent.price) },
-                Materialized.`as`<String, WindowedSalesData, WindowStore<Bytes, ByteArray>>("sales-stats-store")
+                Materialized.`as`<String, WindowedSalesData, WindowStore<Bytes, ByteArray>>("sales-stats-store-avro")
                     .withValueSerde(windowedSalesDataSerde)
             )
     }
