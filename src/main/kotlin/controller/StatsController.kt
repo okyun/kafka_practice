@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*
 //"외부에서 데이터를 가져갈 수 있게 서버의 창구(REST API)" 역할
 
 @RestController
-@RequestMapping("/api/stats")
+@RequestMapping("/api/stats/orders")
 class StatsController(
     private val orderStreamsService: OrderStreamsService
 ) {

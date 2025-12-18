@@ -3,8 +3,12 @@ package org.example.controller
 import org.example.avro.AvroOrderEventProducer
 import org.example.basic.OrderEventPublisher
 import org.example.model.CreateOrderRequest
+import org.example.model.OrderCountComparisonStats
 import org.example.model.OrderEvent
+import org.example.model.StatsResponse
+import org.example.stream.AvroOrderStreamsService
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -19,6 +23,7 @@ import java.util.UUID
 class LectureController(
     private val orderEventPublisher: OrderEventPublisher,
     private val avroEventPublisher: AvroOrderEventProducer,
+    private val avroOrderStreamsService: AvroOrderStreamsService,
 ) {
 
     @PostMapping
@@ -65,6 +70,27 @@ class LectureController(
             "orderId" to orderId,
             "message" to "Avro order event published successfully"
         )
+    }
+
+    /**
+     * Avro 주문 이벤트 기반 5분 간격 주문 수 비교 통계 조회
+     *
+     * 최근 5분 vs 그 이전 5분의 주문 수를 비교하여
+     * 변화량과 변화율을 반환한다.
+     */
+    @GetMapping("/avro/stats/count")
+    fun getAvroOrderCountStats(): ResponseEntity<StatsResponse<OrderCountComparisonStats>> {
+        val stats = avroOrderStreamsService.orderCountComparison()
+        val response = StatsResponse(
+            success = stats != null,
+            data = stats,
+            message = if (stats != null) {
+                "Avro order count statistics retrieved successfully"
+            } else {
+                "Avro streams not available or no data found"
+            }
+        )
+        return ResponseEntity.ok(response)
     }
 
 
